@@ -18,9 +18,7 @@
     "bundle": {
       "active": true,
       "targets": ["nsis"],
-      "resources": [
-        "WebView2Runtime"
-      ]
+      "resources": ["WebView2Runtime"]
     }
   }
 }
