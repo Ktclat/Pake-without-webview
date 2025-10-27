@@ -1,4 +1,4 @@
-name: Build App With Pake CLI
+name: Build Windows EXE Package With WebView2
 
 env:
   NODE_VERSION: "22"
@@ -7,174 +7,90 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      platform:
-        description: "Platform"
-        required: true
-        default: "windows-latest"
-        type: choice
-        options:
-          - "windows-latest"
-          - "macos-latest"
-          - "ubuntu-24.04"
       url:
         description: "URL"
         required: true
       name:
-        description: "Name, English, Linux no capital"
+        description: "App name"
         required: true
       icon:
-        description: "Icon, Image URL, Optional"
+        description: "Icon URL (optional)"
         required: false
       width:
-        description: "Width, Optional"
+        description: "Window width (optional)"
         required: false
         default: "1200"
       height:
-        description: "Height, Optional"
+        description: "Window height (optional)"
         required: false
         default: "780"
       fullscreen:
-        description: "Fullscreen, At startup, Optional"
+        description: "Fullscreen at startup (optional)"
         required: false
         type: boolean
         default: false
       hide_title_bar:
-        description: "Hide TitleBar, MacOS only, Optional"
+        description: "Hide TitleBar (optional)"
         required: false
         type: boolean
         default: false
-      multi_arch:
-        description: "MultiArch, MacOS only, Optional"
-        required: false
-        type: boolean
-        default: false
-      targets:
-        description: "Targets, Linux only, Optional"
-        required: false
-        default: "deb"
-        type: choice
-        options:
-          - "deb"
-          - "appimage"
-          - "rpm"
 
 jobs:
   build:
-    name: ${{ inputs.platform }}
-    runs-on: ${{ inputs.platform }}
-    strategy:
-      fail-fast: false
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-env
+      - name: Setup Node & PNPM
+        uses: actions/setup-node@v3
         with:
-          mode: build
-
-      - name: Cache Node dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            node_modules
-            ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install pake-cli
-        shell: bash
+        run: pnpm install pake-cli@latest
+
+      # 下载 WebView2 固定版本
+      - name: Download WebView2 Runtime
+        shell: pwsh
         run: |
-          echo "Installing latest pake-cli..."
-          pnpm install pake-cli@latest
+          $webview2Url = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/454b3964-bfe5-4eff-82da-74c3125b592b/Microsoft.WebView2.FixedVersionRuntime.141.0.3537.99.x64.cab"
+          $outputCab = "webview2.cab"
+          $destFolder = "WebView2Runtime"
 
-          # Verify installation
-          if [ ! -d "node_modules/pake-cli" ]; then
-            echo "Error: Failed to install pake-cli"
-            exit 1
-          fi
+          Write-Host "Downloading WebView2 fixed version runtime..."
+          Invoke-WebRequest -Uri $webview2Url -OutFile $outputCab
 
-          echo "Listing pake-cli contents:"
-          ls -la node_modules/pake-cli/ | head -5
-          echo "pake-cli installation verified"
+          Write-Host "Extracting WebView2 runtime..."
+          mkdir $destFolder
+          expand.exe $outputCab -F:* $destFolder
 
-      - name: Rust cache restore
-        uses: actions/cache/restore@v4.2.0
-        id: cache_store
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            node_modules/pake-cli/src-tauri/target/
-          key: ${{ inputs.platform }}-cargo-${{ hashFiles('node_modules/pake-cli/src-tauri/Cargo.lock') }}
-
-      - name: Build with pake-cli
-        timeout-minutes: 15
-        run: |
-          node ./scripts/github-action-build.js
+      # 构建 EXE 和前端资源
+      - name: Build EXE and frontend
+        run: node ./scripts/github-action-build.js
         env:
           URL: ${{ inputs.url }}
           NAME: ${{ inputs.name }}
           ICON: ${{ inputs.icon }}
-          HEIGHT: ${{ inputs.height }}
           WIDTH: ${{ inputs.width }}
-          HIDE_TITLE_BAR: ${{ inputs.hide_title_bar }}
+          HEIGHT: ${{ inputs.height }}
           FULLSCREEN: ${{ inputs.fullscreen }}
-          MULTI_ARCH: ${{ inputs.multi_arch }}
-          TARGETS: ${{ inputs.targets }}
-          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
-          PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
-          PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
+          HIDE_TITLE_BAR: ${{ inputs.hide_title_bar }}
 
-      # ✅ 自动下载并解压 WebView2 Runtime
-      - name: Download and extract WebView2 Runtime
-        if: ${{ inputs.platform == 'windows-latest' }}
-        shell: pwsh
-        run: |
-          $url = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/454b3964-bfe5-4eff-82da-74c3125b592b/Microsoft.WebView2.FixedVersionRuntime.141.0.3537.99.x64.cab"
-          $output = "webview2.cab"
-          $dest = "WebView2Runtime"
-
-          Write-Host "Downloading WebView2 runtime..."
-          Invoke-WebRequest -Uri $url -OutFile $output
-
-          Write-Host "Extracting WebView2 runtime..."
-          mkdir $dest
-          expand.exe $output -F:* $dest
-
-          Write-Host "Copying WebView2 runtime into output directory..."
-          $outputDir = "node_modules/pake-cli/output"
-          Copy-Item $dest -Destination "$outputDir/WebView2Runtime" -Recurse
-
-      # ✅ 打包成 zip（包含 WebView2）
-      - name: Create ZIP package
-        if: ${{ inputs.platform == 'windows-latest' }}
+      # 将前端资源、EXE 和 WebView2 打包成压缩包
+      - name: Package output into ZIP
         shell: pwsh
         run: |
           $outputDir = "node_modules/pake-cli/output"
-          $zipPath = "output-windows-latest.zip"
-          Compress-Archive -Path "$outputDir\*" -DestinationPath $zipPath -Force
-          Write-Host "Created $zipPath with WebView2 included."
+          $zipName = "output-${{ github.run_id }}.zip"
 
-      - name: Upload archive
+          Write-Host "Creating ZIP package..."
+          # 确保包含 EXE、前端资源和 WebView2
+          Compress-Archive -Path "$outputDir\*" -DestinationPath $zipName -Force
+
+      - name: Upload ZIP package
         uses: actions/upload-artifact@v4
         with:
-          name: output-${{ inputs.platform }}.zip
-          path: output-${{ inputs.platform }}.zip
-          retention-days: 3
-
-      - name: Rust cache store
-        uses: actions/cache/save@v4.2.0
-        if: steps.cache_store.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            node_modules/pake-cli/src-tauri/target/
-          key: ${{ inputs.platform }}-cargo-${{ hashFiles('node_modules/pake-cli/src-tauri/Cargo.lock') }}
+          name: packaged-app
+          path: output-*.zip
