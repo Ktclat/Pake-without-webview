@@ -2,14 +2,13 @@
   "bundle": {
     "icon": ["png/weekly_256.ico", "png/weekly_32.ico"],
     "active": true,
-    "resources": ["png/weekly_32.ico"],
-    "targets": ["msi"],
+    "resources": [
+      "png/weekly_32.ico",
+      "WebView2Runtime"   // ✅ 新增 WebView2 运行时文件夹
+    ],
+    "targets": ["nsis", "app"],           // ✅ 改成直接生成应用文件夹或可选 NSIS 安装包
     "windows": {
-      "digestAlgorithm": "sha256",
-      "wix": {
-        "language": ["en-US"],
-        "template": "assets/main.wxs"
-      }
+      "digestAlgorithm": "sha256"
     }
   }
 }
