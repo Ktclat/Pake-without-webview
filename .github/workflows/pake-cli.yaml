@@ -10,7 +10,7 @@ on:
       platform:
         description: "Platform"
         required: true
-        default: "macos-latest"
+        default: "windows-latest"
         type: choice
         options:
           - "windows-latest"
@@ -130,11 +130,41 @@ jobs:
           PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
           PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
 
+      # ✅ 自动下载并解压 WebView2 Runtime
+      - name: Download and extract WebView2 Runtime
+        if: ${{ inputs.platform == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          $url = "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/454b3964-bfe5-4eff-82da-74c3125b592b/Microsoft.WebView2.FixedVersionRuntime.141.0.3537.99.x64.cab"
+          $output = "webview2.cab"
+          $dest = "WebView2Runtime"
+
+          Write-Host "Downloading WebView2 runtime..."
+          Invoke-WebRequest -Uri $url -OutFile $output
+
+          Write-Host "Extracting WebView2 runtime..."
+          mkdir $dest
+          expand.exe $output -F:* $dest
+
+          Write-Host "Copying WebView2 runtime into output directory..."
+          $outputDir = "node_modules/pake-cli/output"
+          Copy-Item $dest -Destination "$outputDir/WebView2Runtime" -Recurse
+
+      # ✅ 打包成 zip（包含 WebView2）
+      - name: Create ZIP package
+        if: ${{ inputs.platform == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          $outputDir = "node_modules/pake-cli/output"
+          $zipPath = "output-windows-latest.zip"
+          Compress-Archive -Path "$outputDir\*" -DestinationPath $zipPath -Force
+          Write-Host "Created $zipPath with WebView2 included."
+
       - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
           name: output-${{ inputs.platform }}.zip
-          path: node_modules/pake-cli/output/*
+          path: output-${{ inputs.platform }}.zip
           retention-days: 3
 
       - name: Rust cache store
