@@ -2,13 +2,27 @@
   "bundle": {
     "icon": ["png/weekly_256.ico", "png/weekly_32.ico"],
     "active": true,
+
+    // ✅ 包含 WebView2 运行时文件夹
     "resources": [
       "png/weekly_32.ico",
-      "WebView2Runtime" // ✅ 新增 WebView2 运行时文件夹
+      "WebView2Runtime/**/*"
     ],
-    "targets": ["nsis", "app"], // ✅ 改成直接生成应用文件夹或可选 NSIS 安装包
+
+    // ✅ 生成解压即用的版本（不再是 msi）
+    "targets": ["app"],
+
     "windows": {
       "digestAlgorithm": "sha256"
     }
+  },
+
+  // ✅ 新增字段：固定 WebView2 路径
+  "tauri": {
+    "windows": [
+      {
+        "webviewFixedRuntimePath": "WebView2Runtime"
+      }
+    ]
   }
 }
