@@ -4,9 +4,9 @@
     "active": true,
     "resources": [
       "png/weekly_32.ico",
-      "WebView2Runtime"   // ✅ 新增 WebView2 运行时文件夹
+      "WebView2Runtime" // ✅ 新增 WebView2 运行时文件夹
     ],
-    "targets": ["nsis", "app"],           // ✅ 改成直接生成应用文件夹或可选 NSIS 安装包
+    "targets": ["nsis", "app"], // ✅ 改成直接生成应用文件夹或可选 NSIS 安装包
     "windows": {
       "digestAlgorithm": "sha256"
     }
