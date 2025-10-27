@@ -4,10 +4,7 @@
     "active": true,
 
     // ✅ 包含 WebView2 运行时文件夹
-    "resources": [
-      "png/weekly_32.ico",
-      "WebView2Runtime/**/*"
-    ],
+    "resources": ["png/weekly_32.ico", "WebView2Runtime/**/*"],
 
     // ✅ 生成解压即用的版本（不再是 msi）
     "targets": ["app"],
